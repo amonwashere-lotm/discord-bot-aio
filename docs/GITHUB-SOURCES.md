@@ -42,3 +42,14 @@ Reviewed 2026-10-24. GitHub search for “AeroX Development” located these non
 - [itsfizys/Melon-All-In-One-Discord-Bot](https://github.com/itsfizys/Melon-All-In-One-Discord-Bot/tree/ba6362e7353cdb13323f4167ad318092e2595edc): inspected `src/lib/helpMenu.js` and `src/emojis.json` for menu structure and semantic icon categories.
 
 These are visual placement references. GitHub reported no standard license for the first and NOASSERTION for the second. No source code, custom emoji IDs, images, banners or branding from either repository were copied. Kuroo’s existing Components v2 renderer now places its own manually configurable icons in headings, category lists, command rows, menus, navigation, setup, verification, command replies and security alerts. The implementation uses the existing emoji resolver and Unicode fallbacks.
+
+
+## Streaming presence investigation
+
+Reviewed 2026-10-24 using GitHub code search and source reads of active repositories:
+
+- [Hermaca Music Bot status manager](https://github.com/ReyanshIsNeverInnocent/Hermaca-Music-Bot/blob/db960342f6f0cd1333f28279421854bb7563a275/utils/statusManager.js): uses `ActivityType.Streaming` and an activity URL with `setPresence`.
+- [discord-bot-template](https://github.com/Baconr2k7/discord-bot-template/blob/de422e9a980b37017c76aef12a2ce30a9a137216/src/index.js): also supplies a URL for Streaming activity updates.
+- [Discord Gateway events](https://github.com/discord/discord-api-docs/blob/main/developers/events/gateway-events.mdx): authoritative Update Presence and Activity Types definitions; type 1 is Streaming and supported URLs are Twitch and YouTube.
+
+No upstream source code was copied. These references confirm the existing activity payload shape; they do not establish why a particular live deployment displays Online. Added login presence and local diagnostics to expose deployment identity and configuration. Tested the real installed discord.js serializer through a captured Gateway transport; live Discord rendering still requires a test bot.

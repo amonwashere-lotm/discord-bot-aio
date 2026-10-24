@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits as I, Events, MessageFlags, Partials } from 'discord.js';
 import { BRAND, PREFIX } from './brand.js';
-import { startPresence, streamingUrl } from './presence.js';
+import { startPresence, streamingUrl, streamingPresence } from './presence.js';
 import { awardXp } from './progression.js';
 import { Store } from './store.js';
 import { commands, parseArgs, resolveCommand } from './commands.js';
@@ -9,8 +9,8 @@ import { handleSetup } from './setup.js';
 import { handleVerification } from './verification.js';
 import { installProtection } from './protection.js';
 if(!process.env.DISCORD_TOKEN) throw new Error('Set DISCORD_TOKEN in .env before starting.');
-const client=new Client({intents:[I.Guilds,I.GuildMembers,I.GuildMessages,I.MessageContent,I.GuildModeration],partials:[Partials.Message]});
 const presenceUrl=streamingUrl(process.env.STREAMING_URL);
+const client=new Client({presence:streamingPresence(undefined,presenceUrl),intents:[I.Guilds,I.GuildMembers,I.GuildMessages,I.MessageContent,I.GuildModeration],partials:[Partials.Message]});
 let stopPresence=()=>{};
 const store=new Store(process.env.DATABASE_PATH);
 const moderate=installProtection(client,store);
@@ -86,6 +86,7 @@ client.on(Events.InteractionCreate,async interaction=>{
 });
 client.once(Events.ClientReady,async ready=>{
   stopPresence=startPresence(ready,{url:presenceUrl});
+  console.log(`[presence:streaming-v2] bot=${ready.user.id} type=1 provider=${new URL(presenceUrl).hostname} rotation=15000ms · local configuration; check Discord for display`);
   if(ready.user.username!==BRAND) await ready.user.setUsername(BRAND).catch(error=>console.error('Kuroo profile rename failed:',error.message));
   console.log(`Ready as ${ready.user.tag} · ${commands.length} hybrid commands`);
 });

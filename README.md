@@ -266,3 +266,16 @@ Add commands in `src/commands.js`, including a unique `aliases` array, category,
 Help uses the reference layout with a Kuroo greeting, bot avatar thumbnail, actual command count, emoji module list, invite link, module selector and footer. Categories still come from the command registry. If the bot user has a cached profile banner, it appears above the selector. Search, pagination and owner-only controls remain available.
 
 The purple play indicator and **Watch** button are Discord's UI for a Streaming activity with a supported Twitch/YouTube URL. All three 15-second rotation frames use that activity type. Set `STREAMING_URL` to your channel and restart the bot. Discord controls how the indicator appears in each client; there is no separate purple-button setting.
+
+
+### Troubleshooting a missing Streaming activity
+
+1. Update the running checkout from `main` and restart **the bot process**, using `npm start` (`src/index.js`).
+2. Look for `[presence:streaming-v2]` in startup logs. Its bot ID must match the profile you are checking. It reports the configured provider and 15-second rotation without exposing the token.
+3. Run `/diagnose` as an administrator to inspect the local Streaming activity and bot ID. This is local state, not a Discord server acknowledgement.
+4. Set `STREAMING_URL=https://www.twitch.tv/your_channel` in `.env` or your hosting environment. An omitted/blank value uses the default. Use a real channel you control for the Watch destination.
+5. Stop any old deployments or other processes logging in with the same token. Refresh the Discord profile after restarting. Check from another Discord client/account if needed.
+
+The bot now includes Streaming in its initial Gateway login presence as well as all subsequent updates. Publishing your own presence does not require the Guild Presences intent. If the marker and local activity are correct but Discord still displays Online, collect the sanitized startup logs and deployment revision for further investigation; the local diagnostic alone cannot establish the cause.
+
+For live testing, put a dedicated test bot token in the ignored `.env` file as `DISCORD_TOKEN` using the workspace editor or your host's secret settings. Do not post it in chat or commit it. Keep only one test process running during observation.

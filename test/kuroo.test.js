@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { ActivityType } from 'discord.js';
-import { startPresence, streamingUrl, ROTATION_MS } from '../src/presence.js';
+import { startPresence, streamingUrl, streamingPresence, presenceDiagnostic, ROTATION_MS } from '../src/presence.js';
 import { rankCard, leaderboardCard } from '../src/cards.js';
 import { help, handleHelp, helpProfile, commandPanel } from '../src/ui.js';
 import { commands, slashData, resolveCommand } from '../src/commands.js';
@@ -130,4 +130,41 @@ test('reference help shows a profile thumbnail, actual command count, module pic
   let updated;
   await handleHelp({customId:`help:home:${user.id}`,user,client,update:async p=>{updated=p;}},commands);
   assert.equal(updated.components[0].toJSON().components.find(c=>c.type===9).accessory.media.url,profile.avatarUrl);
+});
+
+
+test('real discord.js serializes Streaming type and URL into every outgoing Gateway frame',async()=>{
+  const {Client,GatewayIntentBits,GatewayOpcodes}=await import('discord.js');
+  const initial=streamingPresence();
+  const client=new Client({intents:[GatewayIntentBits.Guilds],presence:initial});
+  const packets=[];
+  // Capture the outgoing transport after the real discord.js presence parser.
+  client.ws.broadcast=packet=>packets.push(JSON.parse(JSON.stringify(packet)));
+  client.user={id:ids.bot,setPresence:data=>client.presence.set(data),get presence(){return client.presence;}};
+  let tick;
+  try {
+    client.ws.connect=async()=>{}; // No network: exercise login's IDENTIFY presence preparation.
+    await client.login('synthetic-test-token');
+    assert.equal(client.options.ws.presence.activities[0].type,1);
+    assert.equal(client.options.ws.presence.activities[0].url,'https://www.twitch.tv/kuroo');
+    client.presence.set(initial);
+    const stop=startPresence(client,{schedule:fn=>{tick=fn;return {unref(){}};},cancel(){}});
+    tick();tick();stop();
+    assert.equal(packets.length,4);
+    for(const packet of packets) {
+      assert.equal(packet.op,GatewayOpcodes.PresenceUpdate);
+      assert.equal(packet.d.activities[0].type,1);
+      assert.equal(packet.d.activities[0].url,'https://www.twitch.tv/kuroo');
+      assert.equal(packet.d.status,'online');
+    }
+    assert.match(presenceDiagnostic(client),/✓ Local Streaming activity/);
+    assert.match(presenceDiagnostic(client),/not confirmation/);
+    client.presence.set({activities:[]});
+    assert.match(presenceDiagnostic(client),/✗ Local Streaming activity/);
+  } finally {await client.destroy();}
+});
+
+test('blank optional streaming URL uses the documented default',()=>{
+  for(const value of [undefined,'','  ']) assert.equal(streamingUrl(value),'https://www.twitch.tv/kuroo');
+  assert.equal(streamingUrl(' https://www.twitch.tv/kuroo '),'https://www.twitch.tv/kuroo');
 });

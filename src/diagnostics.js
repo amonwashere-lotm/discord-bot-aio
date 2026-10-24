@@ -1,10 +1,11 @@
 import { PermissionFlagsBits as P, GatewayIntentBits as I } from 'discord.js';
+import { presenceDiagnostic } from './presence.js';
 import { safeVerifiedRole } from './verification.js';
 import { emoji, emojiDefaults } from './emojis.js';
 
 export async function diagnose(guild,store,client) {
   const s=store.settings(guild.id), me=await guild.members.fetchMe({force:true});
-  const checks=[];
+  const checks=[presenceDiagnostic(client)];
   const required=[['View channels',P.ViewChannel],['Send messages',P.SendMessages],['Attach rank/CAPTCHA images',P.AttachFiles]];
   if(s.automod||s.honeypot) required.push(['Delete filtered messages',P.ManageMessages]);
   if(s.automod||s.honeypot&&s.honeypotAction==='timeout') required.push(['Timeout members',P.ModerateMembers]);
