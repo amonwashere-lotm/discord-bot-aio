@@ -15,9 +15,9 @@ JavaScript / Node 24 bot with Discord Components v2, `?` prefix, slash commands,
 
 - **General:** help with automatic category discovery, alias search, six commands per page, and navigation; ping. Exact name/alias matches appear first in search; broad searches show six results and ask you to refine the query.
 - **Moderation:** purge, timeout, kick, ban. Both command paths enforce caller permissions, bot permissions, and role hierarchy. Timeout duration is 1–40,320 minutes. Purge skips messages older than 14 days.
-- **Automod:** deletes Discord invites and mass mentions (5+ distinct users or everyone/here); 6 messages in 8 seconds triggers a 60-second timeout when possible. Manage Messages members are exempt. Filtered messages do not earn XP.
-- **Anti-nuke:** 3 combined channel deletions, role deletions, bans, kicks, or webhook creations by one executor in 15 seconds triggers a ban. Uses new audit entries, deduplicates IDs, ignores old entries, and exempts the owner and this bot. Includes other bots and administrators. Enable only after assessing legitimate bulk moderation workflows. Requires View Audit Log and Ban Members; cannot act above its role, restore deleted resources, or guarantee prevention before damage occurs. Failure alerts go to the configured channel or process logs.
-- **Leveling:** 20 XP per eligible non-command message, at most once per minute per member per server. Level = floor(sqrt(XP / 100)). Black PNG rank and top-10 leaderboard cards generated locally.
+- **Automod:** checks new and edited messages, normalizes zero-width characters, and filters invites, mentions, duplicate spam, configurable links, blocked words and excessive capitals. Defaults: 6 messages in 8 seconds, 4 duplicates in 30 seconds, 5 user/role mentions; spam triggers a 60-second timeout. Manage Messages members and configured exemptions are skipped. Filtered messages do not earn XP.
+- **Anti-nuke:** 3 combined sensitive audit events by one executor in 15 seconds triggers a ban. Events include channel/role creation or deletion, bans, kicks, pruning, bot additions, webhook creation/deletion, and additions of dangerous role permissions or dangerous member roles. Uses new audit entries, deduplicates IDs, ignores old entries, and exempts the owner and this bot. Includes other bots and administrators. Enable only after assessing legitimate bulk moderation workflows. Requires View Audit Log and Ban Members; cannot act above its role, restore deleted resources, or guarantee prevention before damage occurs. Failure alerts go to the configured channel or process logs.
+- **Leveling:** By default, 20 XP per eligible non-command message, at most once per minute per member per server; rewards and cooldowns can be tuned. Channel exclusions and up to ten safe level-role rewards are supported. Level = floor(sqrt(XP / 100)). Black PNG rank and top-10 leaderboard cards generated locally. Rank cards use Discord avatars when available, with a fallback on download failure.
 - **Economy:** balance, 500-coin daily with a rolling 24-hour cooldown, and transactional member-to-member pay. `/economy off` stops daily claims and payments while balances and admin adjustments remain available. `/leveling off` stops message XP while preserving ranks and admin adjustments. Balances and XP are isolated per server.
 
 `?rank @member`, `?pay @member 100`, `?timeout @member 10 reason`, and their slash equivalents use the same handlers. Prefix reasons accept spaces. Menu interactions are restricted to the member who opened the menu. Responses suppress mentions.
@@ -47,6 +47,18 @@ Every alias works with `?`, bot mentions, and `/`. For example, `?bal`, `@Bot ba
 | setup | wizard |
 | untimeout | unmute |
 | unban | pardon |
+| deposit | dep |
+| withdraw | with |
+| work | job |
+| richlist | baltop |
+| warn | strike |
+| warnings | warns |
+| clearwarnings | clearwarns |
+| tune | configure |
+| allowlist | exempt |
+| levelrole | rewardrole |
+| emojihealth | checkicons |
+| diagnose | health |
 | help | h, commands |
 | ping | latency |
 | rank | level, lvl |
@@ -69,10 +81,10 @@ Restart the bot to load aliases and run `npm run deploy` to register slash alias
 
 Use `/setup` (`?setup`, alias `wizard`). Only the administrator who opens the wizard can use it; Administrator permission is checked again on every interaction. Drafts expire after 15 minutes or a bot restart. Opening a new wizard replaces that administrator's previous draft in the server.
 
-1. **Features:** choose automod, anti-nuke, leveling, economy, honeypot, and verification. First-time setup selects all features; later runs load current settings. Unselected features are disabled on Apply.
+1. **Features:** choose automod, anti-nuke, leveling, economy, honeypot, and verification. Optionally apply a Balanced or Strict security preset; Keep current tuning preserves your values. Strict selects CAPTCHA, a 24-hour minimum account age, 4 messages/8 seconds, 3 duplicates/30 seconds, a 3-mention limit and 2 anti-nuke events/15 seconds. First-time setup selects all features; later runs load current settings. Unselected features are disabled on Apply.
 2. **Logs:** select an existing text channel or leave empty to create private `#aio-logs`.
-3. **Honeypot:** select a dedicated channel or leave empty to create `#honeypot`; select timeout, kick, or ban. The default timeout is one hour.
-4. **Verification:** select a channel and a permissionless role, or leave empty to create read-only `#verify` and a Verified role. Choose whether to create a gated `#members` channel (enabled by default).
+3. **Honeypot:** select a dedicated channel or leave empty to create `#honeypot`; select timeout, kick, or ban. The default timeout is one hour, configurable through `/tune honeypotTimeoutMinutes`.
+4. **Verification:** select a channel and a permissionless role, or leave empty to create read-only `#verify` and a Verified role. Choose button or CAPTCHA mode and whether to create a gated `#members` channel (enabled by default). CAPTCHA needs Attach Files in the verification channel.
 5. **Review and Apply:** the wizard checks bot permissions and supplied resources, creates missing resources, posts panels, and saves configuration. Cancel leaves configuration unchanged. Failed application attempts remove newly created resources/messages and report any cleanup failures. Existing channels/roles are never deleted by rollback.
 
 The optional new `#members` channel denies View Channel to @everyone and allows the Verified role. Its channel and role IDs are saved and reused on subsequent setup runs. Choosing a different Verified role creates a new gated member channel and preserves the old one. The wizard preserves existing channel overwrites. To restrict other existing member channels, deny **View Channel** to @everyone and allow it for the Verified role on your member categories/channels. Keep verification and honeypot channels visible to new members. The newly created log channel is private. Other existing roles/overwrites can still grant access, so check Discord's “View Server As Role” before relying on the gate.
@@ -141,11 +153,75 @@ Channel and role IDs work in place of mentions. Slash commands offer channel/rol
 
 **Honeypot:** non-bot, non-webhook messages in the selected channel are deleted and trigger the configured punishment. Owners and administrators are exempt. Repeat actions for the same member are suppressed for 60 seconds. Messages handled by the honeypot do not run commands or earn XP. Missing permissions or role hierarchy prevent punishment and produce alerts. Use a dedicated trap channel; logs and verification cannot share it. A warning is posted whenever enabled.
 
-**Verification:** a persistent Verify button grants only the configured Verified role. It works across restarts because its message/channel/role IDs are stored in SQLite. Old panels, disabled verification, already verified members, privileged roles, managed roles, @everyone, roles above the bot, and privileged channel overrides are checked. The role must have no server permissions; use channel View/Send overrides for member access. Verification uses a button rather than a CAPTCHA; a click alone cannot prove that an account is human. It does not remove roles, kick unverified members, or rewrite existing channel permissions.
+**Verification:** a persistent Verify button grants only the configured Verified role. It works across restarts because its message/channel/role IDs are stored in SQLite. Old panels, disabled verification, already verified members, privileged roles, managed roles, @everyone, roles above the bot, and privileged channel overrides are checked. The role must have no server permissions; use channel View/Send overrides for member access. Button mode is the default; `/tune verificationMode captcha` enables a locally generated six-character image challenge with a modal answer form, three attempts, a three-minute expiry and a 30-second regeneration cooldown. Challenges bind to the member, guild, configured role and panel, are consumed once, and expire on restart. `/tune verifyMinAgeHours 24` requires a one-day-old account. A CAPTCHA adds friction but cannot guarantee that an operator is human. It does not remove roles, kick unverified members, or rewrite existing channel permissions.
+
+## GitHub-informed module improvements
+
+See [GitHub sources and license notes](docs/GITHUB-SOURCES.md) for pinned source revisions and the pattern adopted by each module. MIT adaptation notices are in `third-party-notices/`.
+
+### Configuration and diagnostics
+
+```text
+?tune
+?tune spamCount 5
+?tune duplicateCount 4
+?tune blockedWords badword,bad phrase
+?tune blockedWords clear
+?tune blockLinks on
+?tune antinukeCount 3
+?tune xpAmount 30
+?tune dailyAmount 750
+?tune verificationMode captcha
+?tune verifyMinAgeHours 24
+?diagnose
+?emojihealth
+```
+
+`/tune` lists all current settings. All tuning writes require Administrator. The setting menu includes ranges enforced for both prefix and slash commands. `/diagnose` checks module permissions, channel access and the verification role. `/emojihealth` checks known bot/application emoji metadata; unknown cache entries may need access checks in Discord. A bare emoji ID is normalized to animated markup when the bot already knows its metadata.
+
+```text
+?allowlist automod-channel add #bot-commands
+?allowlist automod-role add @Trusted
+?allowlist automod-user add @member
+?allowlist honeypot-user add @member
+?allowlist leveling-channel add #no-xp
+?allowlist antinuke-user add @trusted-admin
+?allowlist automod-channel list
+?allowlist automod-channel remove #bot-commands
+```
+
+Only the **server owner** can manage anti-nuke exemptions. Other exemption scopes require Administrator. Each scope allows 50 IDs. Leveling-channel entries exclude XP in those channels. Existing owner/bot/admin protections still apply.
+
+### Economy and moderation
+
+```text
+?deposit 500
+?withdraw 200
+?work
+?richlist
+?warn @member repeated disruption
+?warnings @member
+?clearwarnings @member
+```
+
+Wallet and bank transfers update both fields atomically; payments use wallet coins. Work defaults to 200 coins once per hour and persists its cooldown across restarts. `/balance` shows both balances; `/richlist` ranks their combined totals. Disabling economy blocks work, daily claims, payments and bank movement, while views and admin adjustments remain available. `/tune` supports work/daily amounts and cooldowns. Existing admin balance commands adjust wallet coins.
+
+Warnings require Moderate Members and respect caller hierarchy. The most recent ten are shown, with long reasons shortened for display. Warning records remain in SQLite until cleared. Automatic protection and admin event logs are also persisted in the `incidents` table, bounded to the latest 1,000 per guild; no raw message content is stored for spam tracking.
+
+### Level-role rewards and help
+
+```text
+?levelrole 5 @Active
+?levelrole 10 @Regular
+?levelrole 5
+?help deposit
+```
+
+Omitting the role removes that reward configuration. Reward roles must be unmanaged, permissionless, below the bot and free of privileged channel overrides. Eligible members receive all missing configured reward roles on their next accepted XP message. Existing role assignments remain when rewards are removed or XP is lowered. Help accepts command names, aliases or keywords directly, as well as through its search button.
 
 ## Data and operations
 
-SQLite is stored at `DATABASE_PATH` (default `./data/bot.sqlite`), with WAL enabled. Mount `data/` on persistent storage. Run one process per database. Use SQLite's backup API or stop the bot before copying the database and WAL files. Protection counters and command cooldowns are in memory and reset on restart. No external image services or paid APIs are used.
+SQLite is stored at `DATABASE_PATH` (default `./data/bot.sqlite`), with WAL enabled. Mount `data/` on persistent storage. Run one process per database. Use SQLite's backup API or stop the bot before copying the database and WAL files. Protection counters, short command cooldowns and pending CAPTCHA challenges are in memory and reset on restart. XP, daily/work cooldowns, bank balances, warnings and configuration persist. Startup automatically adds bank/work columns and warning/incident tables to existing databases; back up data before upgrading. Rank avatars are fetched only from Discord CDN URLs; rendering and CAPTCHA generation are local. No paid APIs are used.
 
 Run `npm test` and `npm run check`. Tests use in-memory databases and synthetic Discord data; a real test guild is required to verify Gateway delivery, Discord permissions, live component rendering, and moderation effects. This project contains no web dashboard or music player.
 

@@ -10,7 +10,7 @@ const user={name:'user',description:'Member to update',type:'user',required:true
 const amount={name:'amount',description:'Amount (0–1,000,000,000)',type:'integer',required:true,min:0,max:1e9};
 const state={name:'state',description:'Enable or disable',type:'string',required:true,choices:['on','off']};
 export function settingsText(s) {
-  return `### Server settings\n${['automod','antinuke','leveling','economy','honeypot','verification'].map(key=>`**${key}:** ${s[key]?'On':'Off'}`).join('\n')}\n**Logs:** ${s.logChannel?`<#${s.logChannel}>`:'Not configured'}\n**Honeypot channel:** ${s.honeypotChannel?`<#${s.honeypotChannel}>`:'Not configured'}\n**Honeypot action:** ${s.honeypotAction}\n**Verification channel:** ${s.verificationChannel?`<#${s.verificationChannel}>`:'Not configured'}\n**Verified role:** ${s.verifiedRole?`<@&${s.verifiedRole}>`:'Not configured'}\n**Member area:** ${s.memberChannel?`<#${s.memberChannel}>`:'Not configured'}\n\nUse /setup for the guided wizard, /setemoji for icons, or browse the Admin category in /help.`;
+  return `### Server settings\n${['automod','antinuke','leveling','economy','honeypot','verification'].map(key=>`**${key}:** ${s[key]?'On':'Off'}`).join('\n')}\n**Logs:** ${s.logChannel?`<#${s.logChannel}>`:'Not configured'}\n**Honeypot channel:** ${s.honeypotChannel?`<#${s.honeypotChannel}>`:'Not configured'}\n**Honeypot action:** ${s.honeypotAction}\n**Verification channel:** ${s.verificationChannel?`<#${s.verificationChannel}>`:'Not configured'}\n**Verified role:** ${s.verifiedRole?`<@&${s.verifiedRole}>`:'Not configured'}\n**Member area:** ${s.memberChannel?`<#${s.memberChannel}>`:'Not configured'}\n**Verification mode:** ${s.verificationMode} · minimum account age ${s.verifyMinAgeHours}h\n**XP:** ${s.xpAmount} every ${s.xpCooldownSeconds}s · **Daily:** ${s.dailyAmount} coins\n**Role rewards:** ${Object.entries(s.levelRoles).map(([level,id])=>`level ${level}: <@&${id}>`).join(', ')||'None'}\n\nUse /tune for limits and rewards, /diagnose for permission checks, or /setup for the guided wizard, /setemoji for icons, or browse the Admin category in /help.`;
 }
 export const adminCommands=[
   ...['xp','balance'].flatMap(field=>['add','remove','set','reset'].map(operation=>({
@@ -42,7 +42,8 @@ export const adminCommands=[
   }})),
   {...admin,name:'setemoji',aliases:['emoji'],description:'Set or clear a guild emoji override by key.',usage:'<key> <id|markup|clear>',options:[{name:'key',description:'Icon to configure',type:'string',required:true,choices:Object.keys(emojiDefaults)},{name:'value',description:'Emoji ID, <:name:id>, <a:name:id>, or clear',type:'string',required:true}],run:async c=>{
     if(!Object.hasOwn(emojiDefaults,c.args.key)) throw new Error(`Choose an emoji key: ${Object.keys(emojiDefaults).join(', ')}.`);
-    const value=c.args.value==='clear'?null:parseEmoji(c.args.value,c.args.key);
+    const cached=c.client?.emojis?.cache.get(c.args.value)??c.client?.application?.emojis?.cache.get(c.args.value);
+    const value=c.args.value==='clear'?null:parseEmoji(cached?cached.toString():c.args.value,c.args.key);
     const emojis={...c.store.settings(c.guild.id).emojis};
     if(value===null) delete emojis[c.args.key]; else emojis[c.args.key]=value;
     const settings=c.store.configure(c.guild.id,{emojis});
@@ -59,7 +60,7 @@ export const adminCommands=[
     if([settings.logChannel,settings.verificationChannel].includes(channel.id)) throw new Error('Honeypot must use a separate channel from logs and verification.');
     const me=await c.guild.members.fetchMe(), needed=[P.ViewChannel,P.SendMessages,P.ManageMessages,{timeout:P.ModerateMembers,kick:P.KickMembers,ban:P.BanMembers}[action]];
     if(!channel.permissionsFor(me)?.has(needed)) throw new Error('I am missing channel access, Manage Messages, or the punishment permission.');
-    await channel.send({content:`Do not send messages here. This is a honeypot. Posting triggers ${action==='timeout'?'a 1-hour timeout':`a ${action}`}. Administrators are exempt.`,allowedMentions:{parse:[]}});
+    await channel.send({content:`Do not send messages here. This is a honeypot. Posting triggers ${action==='timeout'?`a ${settings.honeypotTimeoutMinutes}-minute timeout`:`a ${action}`}. Administrators are exempt.`,allowedMentions:{parse:[]}});
     c.store.configure(c.guild.id,{honeypot:true,honeypotChannel:channel.id,honeypotAction:action});
     await log(c.guild,c.store,`Admin ${c.user.id}: enabled honeypot in ${channel.id} with ${action}.`);
     await c.reply(panel(`Honeypot enabled in <#${channel.id}> with **${action}**.`));

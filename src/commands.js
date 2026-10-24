@@ -1,18 +1,21 @@
 import { PermissionFlagsBits as P, AttachmentBuilder, SlashCommandBuilder } from 'discord.js';
 import { help, panel } from './ui.js';
 import { rankCard, leaderboardCard } from './cards.js';
+import { extensionCommands } from './extensions.js';
+import { avatarFor } from './avatar.js';
 import { adminCommands, settingsText } from './admin.js';
 const userOption={name:'user',description:'Member',type:'user'};
 export const commands=[
   ...adminCommands,
-  {name:'help',aliases:['h','commands'],category:'General',description:'Browse and search all commands.',run:async c=>c.reply(help(commands,c.user,'home','',c.client.user.id,c.store.settings(c.guild.id)))},
+  ...extensionCommands,
+  {name:'help',aliases:['h','commands'],category:'General',description:'Browse and search all commands.',usage:'[query]',options:[{name:'query',description:'Command name, alias or keyword',type:'string',rest:true}],run:async c=>c.reply(help(commands,c.user,c.args.query?'search':'home',c.args.query??'',c.client.user.id,c.store.settings(c.guild.id)))},
   {name:'ping',aliases:['latency'],category:'General',description:'Check the bot connection.',run:async c=>c.reply(panel(`Pong · **${Math.max(0,c.client.ws.ping)} ms**`))},
-  {name:'rank',aliases:['level','lvl'],category:'Leveling',description:'View a black image rank card.',options:[userOption],usage:'[@user]',run:async c=>{const u=await c.target(); await c.reply({files:[new AttachmentBuilder(rankCard(u.username,c.store.user(c.guild.id,u.id),c.store.rank(c.guild.id,u.id)),{name:'rank.png'})]});}},
+  {name:'rank',aliases:['level','lvl'],category:'Leveling',description:'View a black image rank card.',options:[userOption],usage:'[@user]',run:async c=>{const u=await c.target(); await c.reply({files:[new AttachmentBuilder(rankCard(u.username,c.store.user(c.guild.id,u.id),c.store.rank(c.guild.id,u.id),await avatarFor(u)),{name:'rank.png'})]});}},
   {name:'leaderboard',aliases:['lb','top'],category:'Leveling',description:'View the top 10 members as an image.',run:async c=>{
     const rows=await Promise.all(c.store.top(c.guild.id).map(async r=>({...r,name:(await c.client.users.fetch(r.id).catch(()=>null))?.username??'Unknown member'})));
     await c.reply({files:[new AttachmentBuilder(leaderboardCard(rows),{name:'leaderboard.png'})]});}},
-  {name:'balance',aliases:['bal','wallet'],category:'Economy',description:'Check a member’s coin balance.',options:[userOption],usage:'[@user]',run:async c=>{const u=await c.target(); await c.reply(panel(`### Wallet\n${u.username}: **${c.store.user(c.guild.id,u.id).balance.toLocaleString()} coins**`));}},
-  {name:'daily',aliases:['claim'],category:'Economy',description:'Claim 500 coins every 24 hours.',run:async c=>{if(!c.store.settings(c.guild.id).economy) throw new Error('The economy is disabled in this server.'); const ok=c.store.daily(c.guild.id,c.user.id); await c.reply(panel(ok?'You collected **500 coins**.':`Your next daily is <t:${Math.ceil((c.store.user(c.guild.id,c.user.id).last_daily+86400000)/1000)}:R>.`));}},
+  {name:'balance',aliases:['bal','wallet'],category:'Economy',description:'Check a member’s coin balance.',options:[userOption],usage:'[@user]',run:async c=>{const u=await c.target(); await c.reply(panel(`### Wallet\n${u.username}: **${c.store.user(c.guild.id,u.id).balance.toLocaleString()} wallet coins** · **${c.store.user(c.guild.id,u.id).bank.toLocaleString()} bank coins**`));}},
+  {name:'daily',aliases:['claim'],category:'Economy',description:'Claim 500 coins every 24 hours.',run:async c=>{if(!c.store.settings(c.guild.id).economy) throw new Error('The economy is disabled in this server.'); const s=c.store.settings(c.guild.id), ok=c.store.daily(c.guild.id,c.user.id); await c.reply(panel(ok?`You collected **${s.dailyAmount} coins**.`:`Your next daily is <t:${Math.ceil((c.store.user(c.guild.id,c.user.id).last_daily+s.dailyCooldownMinutes*60000)/1000)}:R>.`));}},
   {name:'pay',aliases:['give','transfer'],category:'Economy',description:'Send coins to another member.',usage:'@user <amount>',options:[{...userOption,required:true},{name:'amount',description:'Coins to send',type:'integer',required:true,min:1,max:1e9}],run:async c=>{
     if(!c.store.settings(c.guild.id).economy) throw new Error('The economy is disabled in this server.');
     const u=await c.target(true); if(u.bot) throw new Error('Choose a human member.');
@@ -45,6 +48,7 @@ export function slashData(command, name=command.name) {
     data[method](o=>{
       o.setName(option.name).setDescription(option.description).setRequired(!!option.required);
       if(option.type==='channel') o.addChannelTypes(0);
+      if(option.type==='string') o.setMaxLength(option.name==='reason'?500:1000);
       if(option.min!==undefined) o.setMinValue(option.min).setMaxValue(option.max);
       if(option.choices) o.addChoices(...option.choices.map(v=>({name:v,value:v})));
       return o;
@@ -55,7 +59,7 @@ export function slashData(command, name=command.name) {
 export function parseArgs(command, tokens) {
   const result={};
   for (const option of command.options??[]) {
-    const raw=option.name==='reason'?tokens.splice(0).join(' '):tokens.shift();
+    const raw=(option.name==='reason'||option.rest)?tokens.splice(0).join(' '):tokens.shift();
     if(!raw) { if(option.required) throw new Error(`Missing ${option.name}. Usage: ?${command.name} ${command.usage??''}`); continue; }
     const value=option.type==='integer'?Number(raw):raw;
     if(option.choices&&!option.choices.includes(value)) throw new Error(`${option.name} must be one of: ${option.choices.join(', ')}.`);
