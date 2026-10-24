@@ -1,24 +1,27 @@
 import { PermissionFlagsBits as P, AttachmentBuilder, SlashCommandBuilder } from 'discord.js';
 import { help, panel } from './ui.js';
 import { rankCard, leaderboardCard } from './cards.js';
+import { adminCommands, settingsText } from './admin.js';
 const userOption={name:'user',description:'Member',type:'user'};
 export const commands=[
-  {name:'help',aliases:['h','commands'],category:'General',description:'Browse and search all commands.',run:async c=>c.reply(help(commands,c.user,'home','',c.client.user.id))},
+  ...adminCommands,
+  {name:'help',aliases:['h','commands'],category:'General',description:'Browse and search all commands.',run:async c=>c.reply(help(commands,c.user,'home','',c.client.user.id,c.store.settings(c.guild.id)))},
   {name:'ping',aliases:['latency'],category:'General',description:'Check the bot connection.',run:async c=>c.reply(panel(`Pong · **${Math.max(0,c.client.ws.ping)} ms**`))},
   {name:'rank',aliases:['level','lvl'],category:'Leveling',description:'View a black image rank card.',options:[userOption],usage:'[@user]',run:async c=>{const u=await c.target(); await c.reply({files:[new AttachmentBuilder(rankCard(u.username,c.store.user(c.guild.id,u.id),c.store.rank(c.guild.id,u.id)),{name:'rank.png'})]});}},
   {name:'leaderboard',aliases:['lb','top'],category:'Leveling',description:'View the top 10 members as an image.',run:async c=>{
     const rows=await Promise.all(c.store.top(c.guild.id).map(async r=>({...r,name:(await c.client.users.fetch(r.id).catch(()=>null))?.username??'Unknown member'})));
     await c.reply({files:[new AttachmentBuilder(leaderboardCard(rows),{name:'leaderboard.png'})]});}},
   {name:'balance',aliases:['bal','wallet'],category:'Economy',description:'Check a member’s coin balance.',options:[userOption],usage:'[@user]',run:async c=>{const u=await c.target(); await c.reply(panel(`### Wallet\n${u.username}: **${c.store.user(c.guild.id,u.id).balance.toLocaleString()} coins**`));}},
-  {name:'daily',aliases:['claim'],category:'Economy',description:'Claim 500 coins every 24 hours.',run:async c=>{const ok=c.store.daily(c.guild.id,c.user.id); await c.reply(panel(ok?'You collected **500 coins**.':`Your next daily is <t:${Math.ceil((c.store.user(c.guild.id,c.user.id).last_daily+86400000)/1000)}:R>.`));}},
+  {name:'daily',aliases:['claim'],category:'Economy',description:'Claim 500 coins every 24 hours.',run:async c=>{if(!c.store.settings(c.guild.id).economy) throw new Error('The economy is disabled in this server.'); const ok=c.store.daily(c.guild.id,c.user.id); await c.reply(panel(ok?'You collected **500 coins**.':`Your next daily is <t:${Math.ceil((c.store.user(c.guild.id,c.user.id).last_daily+86400000)/1000)}:R>.`));}},
   {name:'pay',aliases:['give','transfer'],category:'Economy',description:'Send coins to another member.',usage:'@user <amount>',options:[{...userOption,required:true},{name:'amount',description:'Coins to send',type:'integer',required:true,min:1,max:1e9}],run:async c=>{
+    if(!c.store.settings(c.guild.id).economy) throw new Error('The economy is disabled in this server.');
     const u=await c.target(true); if(u.bot) throw new Error('Choose a human member.');
     const ok=c.store.transfer(c.guild.id,c.user.id,u.id,c.args.amount); await c.reply(panel(ok?`Sent **${c.args.amount} coins** to ${u.username}.`:'Transfer rejected. Check the amount and your balance; you cannot pay yourself.'));}},
-  {name:'settings',aliases:['config'],category:'Security',description:'View server protection settings.',permission:P.ManageGuild,run:async c=>{const s=c.store.settings(c.guild.id); await c.reply(panel(`### Server protection\nAutomod: **${s.automod?'On':'Off'}**\nAnti-nuke: **${s.antinuke?'On':'Off'}**\nLog channel: ${s.logChannel?`<#${s.logChannel}>`:'Not set'}\nUse /logchannel to configure alerts.`));}},
+  {name:'settings',aliases:['config'],category:'Security',description:'View server protection settings.',permission:P.ManageGuild,run:async c=>c.reply(panel(settingsText(c.store.settings(c.guild.id))))},
   ...['automod','antinuke'].map(name=>({name,aliases:name==='automod'?['am']:['an'],category:'Security',description:`Enable or disable ${name}.`,permission:P.Administrator,usage:'<on|off>',options:[{name:'state',description:'Protection state',type:'string',required:true,choices:['on','off']}],run:async c=>{
     if(!['on','off'].includes(c.args.state)) throw new Error('Choose on or off.');
     c.store.configure(c.guild.id,{[name]:c.args.state==='on'}); await c.reply(panel(`**${name}** is now **${c.args.state}**.`));}})),
-  {name:'logchannel',aliases:['setlogs'],category:'Security',description:'Set the current channel for security alerts.',permission:P.Administrator,run:async c=>{c.store.configure(c.guild.id,{logChannel:c.channel.id}); await c.reply(panel('Security alerts will be sent here.'));}},
+  {name:'logchannel',aliases:['setlogs'],category:'Security',description:'Set the current channel for security alerts.',permission:P.Administrator,run:async c=>{const s=c.store.settings(c.guild.id); if(c.channel.id===s.honeypotChannel||c.channel.id===s.verificationChannel) throw new Error('Use a separate channel for security logs.'); c.store.configure(c.guild.id,{logChannel:c.channel.id}); await c.reply(panel('Security alerts will be sent here.'));}},
   {name:'purge',aliases:['clear'],category:'Moderation',description:'Delete up to 100 recent messages (under 14 days old).',permission:P.ManageMessages,botPermission:P.ManageMessages,usage:'<amount>',options:[{name:'amount',description:'Number of messages',type:'integer',required:true,min:1,max:100}],run:async c=>{
     if(!c.channel.bulkDelete) throw new Error('This channel does not support bulk deletion.');
     const deleted=await c.channel.bulkDelete(c.args.amount,true); await c.reply(panel(`Deleted **${deleted.size}** messages.`));}},
@@ -38,9 +41,10 @@ export function slashData(command, name=command.name) {
   const data=new SlashCommandBuilder().setName(name).setDescription(command.description).setDMPermission(false);
   if(command.permission) data.setDefaultMemberPermissions(command.permission);
   for(const option of command.options??[]) {
-    const method={user:'addUserOption',integer:'addIntegerOption',string:'addStringOption'}[option.type];
+    const method={user:'addUserOption',integer:'addIntegerOption',string:'addStringOption',channel:'addChannelOption',role:'addRoleOption'}[option.type];
     data[method](o=>{
       o.setName(option.name).setDescription(option.description).setRequired(!!option.required);
+      if(option.type==='channel') o.addChannelTypes(0);
       if(option.min!==undefined) o.setMinValue(option.min).setMaxValue(option.max);
       if(option.choices) o.addChoices(...option.choices.map(v=>({name:v,value:v})));
       return o;
@@ -54,6 +58,7 @@ export function parseArgs(command, tokens) {
     const raw=option.name==='reason'?tokens.splice(0).join(' '):tokens.shift();
     if(!raw) { if(option.required) throw new Error(`Missing ${option.name}. Usage: ?${command.name} ${command.usage??''}`); continue; }
     const value=option.type==='integer'?Number(raw):raw;
+    if(option.choices&&!option.choices.includes(value)) throw new Error(`${option.name} must be one of: ${option.choices.join(', ')}.`);
     if(option.type==='integer'&&(!Number.isSafeInteger(value)||value<option.min||value>option.max)) throw new Error(`${option.name} must be an integer from ${option.min} to ${option.max}.`);
     result[option.name]=value;
   }

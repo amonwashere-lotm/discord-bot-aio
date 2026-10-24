@@ -18,7 +18,7 @@ export class Store {
   }
   settings(guild) {
     const row = this.db.prepare('SELECT value FROM settings WHERE guild=?').get(guild);
-    return { automod: false, antinuke: false, logChannel: null, ...JSON.parse(row?.value ?? '{}') };
+    return { automod: false, antinuke: false, logChannel: null, leveling: true, economy: true, honeypot: false, honeypotChannel: null, honeypotAction: 'timeout', verification: false, verificationChannel: null, verifiedRole: null, verificationMessage: null, memberArea: true, memberChannel: null, memberRole: null, emojis: {}, ...JSON.parse(row?.value ?? '{}') };
   }
   configure(guild, patch) {
     const value = { ...this.settings(guild), ...patch };
@@ -27,10 +27,10 @@ export class Store {
   }
   xp(guild,id,now=Date.now()) {
     this.user(guild,id);
-    return this.db.prepare('UPDATE users SET xp=xp+20,last_xp=? WHERE guild=? AND id=? AND last_xp<=?').run(now,guild,id,now-60000).changes > 0;
+    return this.db.prepare('UPDATE users SET xp=xp+20,last_xp=? WHERE guild=? AND id=? AND xp<=9007199254740971 AND last_xp<=?').run(now,guild,id,now-60000).changes > 0;
   }
   daily(guild,id,now=Date.now()) {
-    this.user(guild,id);
+    if(this.user(guild,id).balance>Number.MAX_SAFE_INTEGER-500) throw new Error('Balance limit reached.');
     return this.db.prepare('UPDATE users SET balance=balance+500,last_daily=? WHERE guild=? AND id=? AND last_daily<=?').run(now,guild,id,now-86400000).changes > 0;
   }
   transfer(guild,from,to,amount) {
@@ -45,6 +45,22 @@ export class Store {
       this.db.prepare('UPDATE users SET balance=balance+? WHERE guild=? AND id=?').run(amount,guild,to);
       this.db.exec('COMMIT'); return true;
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  }
+  adjust(guild, id, field, operation, amount=0) {
+    if (!['xp','balance'].includes(field) || !['add','remove','set','reset'].includes(operation)) throw new Error('Invalid adjustment.');
+    if (!Number.isSafeInteger(amount) || amount<0 || amount>1e9) throw new Error('Amount must be an integer from 0 to 1,000,000,000.');
+    this.user(guild,id);
+    // Each adjustment is one SQL statement, so concurrent commands cannot overwrite a stale balance.
+    const expression={add:`${field}+?`, remove:`max(0,${field}-?)`, set:'?', reset:'0'}[operation];
+    const params=operation==='reset'?[guild,id]:[amount,guild,id];
+    const guard=operation==='add'?` AND ${field}<=${Number.MAX_SAFE_INTEGER-amount}`:'';
+    const result=this.db.prepare(`UPDATE users SET ${field}=${expression} WHERE guild=? AND id=?${guard}`).run(...params);
+    if (!result.changes) throw new Error('Value is too large to adjust safely.');
+    return this.user(guild,id)[field];
+  }
+  resetDaily(guild,id) {
+    this.user(guild,id);
+    this.db.prepare('UPDATE users SET last_daily=0 WHERE guild=? AND id=?').run(guild,id);
   }
   top(guild) { return this.db.prepare('SELECT * FROM users WHERE guild=? ORDER BY xp DESC,id ASC LIMIT 10').all(guild); }
   rank(guild,id) {

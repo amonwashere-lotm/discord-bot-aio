@@ -2,6 +2,8 @@ import { Client, GatewayIntentBits as I, Events, MessageFlags } from 'discord.js
 import { Store } from './store.js';
 import { commands, parseArgs, resolveCommand } from './commands.js';
 import { handleHelp, panel } from './ui.js';
+import { handleSetup } from './setup.js';
+import { handleVerification } from './verification.js';
 import { installProtection } from './protection.js';
 if(!process.env.DISCORD_TOKEN) throw new Error('Set DISCORD_TOKEN in .env before starting.');
 const client=new Client({intents:[I.Guilds,I.GuildMembers,I.GuildMessages,I.MessageContent,I.GuildModeration]});
@@ -44,7 +46,7 @@ client.on(Events.MessageCreate,async message=>{
     let input;
     if(message.content.startsWith('?')) input=message.content.slice(1);
     else if(mention.test(message.content)) input=message.content.replace(mention,'')||'help';
-    else { if(message.content.trim().length>=3) store.xp(message.guild.id,message.author.id); return; }
+    else { if(store.settings(message.guild.id).leveling&&message.content.trim().length>=3) store.xp(message.guild.id,message.author.id); return; }
     const [name,...tokens]=input.trim().split(/\s+/);
     const command=resolveCommand(name);
     if(!command) return;
@@ -55,7 +57,9 @@ client.on(Events.MessageCreate,async message=>{
 });
 client.on(Events.InteractionCreate,async interaction=>{
   try {
-    if(await handleHelp(interaction,commands)) return;
+    if(await handleSetup(interaction,store)) return;
+    if(await handleVerification(interaction,store)) return;
+    if(await handleHelp(interaction,commands,store)) return;
     if(!interaction.isChatInputCommand()) return;
     if(!interaction.inGuild()) { await interaction.reply({content:'Use this command in a server.',flags:MessageFlags.Ephemeral}); return; }
     const command=resolveCommand(interaction.commandName);

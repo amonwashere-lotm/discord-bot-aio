@@ -1,1 +1,19 @@
-{"name":"discord-bot-aio","version":"1.0.0","private":true,"type":"module","engines":{"node":">=24.0.0"},"scripts":{"start":"node --env-file=.env src/index.js","deploy":"node --env-file=.env src/deploy.js","test":"node --test","check":"node --check src/index.js && node --check src/commands.js && node --check src/protection.js"},"dependencies":{"discord.js":"^14.24.0","@napi-rs/canvas":"^0.1.80"}}
+{
+  "name": "discord-bot-aio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node --env-file=.env src/index.js",
+    "deploy": "node --env-file=.env src/deploy.js",
+    "test": "node --test",
+    "check": "node --check src/index.js && node --check src/commands.js && node --check src/protection.js && node --check src/admin.js && node --check src/setup.js && node --check src/verification.js && node --check src/emojis.js && node --check src/ui.js && node --check src/deploy.js && node --check src/store.js && node --check src/cards.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.24.0",
+    "@napi-rs/canvas": "^0.1.80"
+  }
+}

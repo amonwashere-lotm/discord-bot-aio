@@ -13,9 +13,32 @@ export async function log(guild,store,message) {
   const channel=await guild.channels.fetch(id).catch(()=>null);
   if(channel?.isTextBased()) await channel.send({content:message.slice(0,1900),allowedMentions:{parse:[]}}).catch(e=>console.error('Security log delivery failed:',e.message));
 }
+export async function handleHoneypot(message,store,recent=new Map()) {
+  const settings=store.settings(message.guild.id);
+  if(!settings.honeypot||settings.honeypotChannel!==message.channel.id) return false;
+  if(message.author.bot||message.webhookId||message.author.id===message.guild.ownerId) return false;
+  const member=message.member??await message.guild.members.fetch(message.author.id).catch(()=>null);
+  if(member?.permissions.has(P.Administrator)) return false;
+  try { await message.delete(); } catch(error) { await log(message.guild,store,`Honeypot deletion failed: ${error.message}`); }
+  const key=`${message.guild.id}:${message.author.id}`;
+  if(Date.now()-(recent.get(key)??0)<60000) return true;
+  recent.set(key,Date.now());
+  try {
+    if(!member) throw new Error('Member is unavailable.');
+    const action=settings.honeypotAction;
+    const capability={timeout:'moderatable',kick:'kickable',ban:'bannable'}[action];
+    if(!capability||!member[capability]) throw new Error('Cannot punish this member. Check permissions and role hierarchy.');
+    const reason='Honeypot: posted in the configured trap channel';
+    if(action==='timeout') await member.timeout(3600000,reason);
+    else if(action==='kick') await member.kick(reason);
+    else await member.ban({reason});
+    await log(message.guild,store,`Honeypot: ${action} applied to ${message.author.id} in ${message.channel.id}.`);
+  } catch(error) { await log(message.guild,store,`Honeypot action failed for ${message.author.id}: ${error.message}`); }
+  return true;
+}
 export function installProtection(client,store) {
-  const spam=new WindowCounter(8000,6), destruction=new WindowCounter(15000,3), seen=new Map(), locked=new Set();
-  const timer=setInterval(()=>{spam.sweep(); destruction.sweep(); for(const [id,time] of seen) if(Date.now()-time>60000) seen.delete(id);},60000); timer.unref();
+  const spam=new WindowCounter(8000,6), destruction=new WindowCounter(15000,3), seen=new Map(), locked=new Set(), trapped=new Map();
+  const timer=setInterval(()=>{spam.sweep(); destruction.sweep(); for(const [key,time] of trapped) if(Date.now()-time>=60000) trapped.delete(key); for(const [id,time] of seen) if(Date.now()-time>60000) seen.delete(id);},60000); timer.unref();
   const actions=new Set([AuditLogEvent.ChannelDelete,AuditLogEvent.RoleDelete,AuditLogEvent.MemberBanAdd,AuditLogEvent.MemberKick,AuditLogEvent.WebhookCreate]);
   client.on('guildAuditLogEntryCreate',async (entry,guild)=>{
     try {
@@ -34,6 +57,7 @@ export function installProtection(client,store) {
     } catch(error) { await log(guild,store,`Anti-nuke failed: ${error.message}`); }
   });
   return async message=>{
+    if(await handleHoneypot(message,store,trapped)) return true;
     if(!store.settings(message.guild.id).automod||message.member?.permissions.has(P.ManageMessages)) return false;
     const flood=spam.hit(`${message.guild.id}:${message.author.id}`);
     const invite=/(?:discord\.gg|discord(?:app)?\.com\/invite)\s*\/\s*[\w-]+/i.test(message.content);

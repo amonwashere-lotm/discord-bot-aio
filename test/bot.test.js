@@ -23,7 +23,10 @@ test('all commands serialize for Discord and help discovers each category',()=>{
  for(const c of commands) assert.equal(slashData(c).name,c.name);
  const payload=help(commands,{id:'123',username:'tester'});
  const json=JSON.stringify(payload); for(const category of new Set(commands.map(c=>c.category))) assert.ok(json.includes(category));
- for(const c of commands) assert.ok(JSON.stringify(help(commands,{id:'123',username:'tester'},c.category)).includes(c.description));
+ for(const c of commands) {
+   const page=Math.floor(commands.filter(other=>other.category===c.category).indexOf(c)/6);
+   assert.ok(JSON.stringify(help(commands,{id:'123',username:'tester'},c.category,'',undefined,{},page)).includes(c.description));
+ }
 });
 test('prefix arguments enforce numeric bounds and retain reasons',()=>{
  const timeout=commands.find(c=>c.name==='timeout');
@@ -92,7 +95,8 @@ test('slash aliases preserve options and permissions of their original commands'
 test('help displays and searches every alias without duplicate command entries',()=>{
  const user={id:'123',username:'tester'};
  for(const command of commands) {
-   const category=JSON.stringify(help(commands,user,command.category));
+   const page=Math.floor(commands.filter(other=>other.category===command.category).indexOf(command)/6);
+   const category=JSON.stringify(help(commands,user,command.category,'',undefined,{},page));
    for(const alias of command.aliases) {
      assert.ok(category.includes(alias));
      const payload=help(commands,user,'search',alias.toUpperCase());
