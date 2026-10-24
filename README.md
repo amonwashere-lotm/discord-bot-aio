@@ -1,4 +1,4 @@
-# AIO · Discord bot
+# Kuroo · Discord bot
 
 JavaScript / Node 24 bot with Discord Components v2, `?` prefix, slash commands, and mention commands. The help menu follows the supplied dark, category-based reference with Home, Search, Close, and Invite controls. Categories and command descriptions come from one command registry.
 
@@ -11,13 +11,27 @@ JavaScript / Node 24 bot with Discord Components v2, `?` prefix, slash commands,
 5. Set `GUILD_ID` for immediate slash registration in a test server. Run `npm run deploy`, then `npm start`. Without `GUILD_ID`, deploy registers global commands, which may take time to propagate. Registration replaces this application's command list in the selected scope.
 6. Run `?setup` or `/setup` as a server administrator. Choose features and channels, review, then apply. Run `?help` or `/help` to browse all commands. Existing installations must restart and rerun `npm run deploy` to register the new commands and aliases.
 
+## Kuroo branding and streaming presence
+
+At startup the bot requests the username **Kuroo** if it differs. Discord can rate-limit/reject a profile rename; failures are logged while the bot continues. Existing guild nicknames and the Developer Portal application name are separate Discord settings.
+
+The presence uses **Streaming** for every frame, with a 15-second rotation:
+
+1. `Indestructible Defence ?help`
+2. `Watching over n servers`
+3. `Looking after n users`
+
+Counts are refreshed from the bot’s current guild cache on each frame. Users is the sum of server member counts, including bots and repeat memberships across servers. No members are fetched solely for this status.
+
+Set `STREAMING_URL` in `.env` to your HTTPS Twitch channel or YouTube channel/video URL. The fallback is `https://www.twitch.tv/kuroo`; it is an activity link, not a provisioned channel. The Streaming type and supported URL request Discord’s purple streaming indicator. Confirm its appearance in your Discord client after restarting. All frames keep the Streaming activity type even when the message starts with “Watching”. The prefix remains `?`.
+
 ## Features
 
 - **General:** help with automatic category discovery, alias search, six commands per page, and navigation; ping. Exact name/alias matches appear first in search; broad searches show six results and ask you to refine the query.
 - **Moderation:** purge, timeout, kick, ban. Both command paths enforce caller permissions, bot permissions, and role hierarchy. Timeout duration is 1–40,320 minutes. Purge skips messages older than 14 days.
 - **Automod:** checks new and edited messages, normalizes zero-width characters, and filters invites, mentions, duplicate spam, configurable links, blocked words and excessive capitals. Defaults: 6 messages in 8 seconds, 4 duplicates in 30 seconds, 5 user/role mentions; spam triggers a 60-second timeout. Manage Messages members and configured exemptions are skipped. Filtered messages do not earn XP.
 - **Anti-nuke:** 3 combined sensitive audit events by one executor in 15 seconds triggers a ban. Events include channel/role creation or deletion, bans, kicks, pruning, bot additions, webhook creation/deletion, and additions of dangerous role permissions or dangerous member roles. Uses new audit entries, deduplicates IDs, ignores old entries, and exempts the owner and this bot. Includes other bots and administrators. Enable only after assessing legitimate bulk moderation workflows. Requires View Audit Log and Ban Members; cannot act above its role, restore deleted resources, or guarantee prevention before damage occurs. Failure alerts go to the configured channel or process logs.
-- **Leveling:** By default, 20 XP per eligible non-command message, at most once per minute per member per server; rewards and cooldowns can be tuned. Channel exclusions and up to ten safe level-role rewards are supported. Level = floor(sqrt(XP / 100)). Black PNG rank and top-10 leaderboard cards generated locally. Rank cards use Discord avatars when available, with a fallback on download failure.
+- **Leveling:** By default, 20 XP per eligible non-command message, at most once per minute per member per server; rewards and cooldowns can be tuned. Channel exclusions and up to ten safe level-role rewards are supported. Level = floor(sqrt(XP / 100)). PNG rank and top-10 leaderboard cards generated locally. Rank cards fill the background with the member’s 512px Discord avatar, centered and cropped to cover without stretching. A dark gradient keeps the text readable; download failures use the black fallback. The leaderboard keeps its black theme.
 - **Economy:** balance, 500-coin daily with a rolling 24-hour cooldown, and transactional member-to-member pay. `/economy off` stops daily claims and payments while balances and admin adjustments remain available. `/leveling off` stops message XP while preserving ranks and admin adjustments. Balances and XP are isolated per server.
 
 `?rank @member`, `?pay @member 100`, `?timeout @member 10 reason`, and their slash equivalents use the same handlers. Prefix reasons accept spaces. Menu interactions are restricted to the member who opened the menu. Responses suppress mentions.
@@ -82,7 +96,7 @@ Restart the bot to load aliases and run `npm run deploy` to register slash alias
 Use `/setup` (`?setup`, alias `wizard`). Only the administrator who opens the wizard can use it; Administrator permission is checked again on every interaction. Drafts expire after 15 minutes or a bot restart. Opening a new wizard replaces that administrator's previous draft in the server.
 
 1. **Features:** choose automod, anti-nuke, leveling, economy, honeypot, and verification. Optionally apply a Balanced or Strict security preset; Keep current tuning preserves your values. Strict selects CAPTCHA, a 24-hour minimum account age, 4 messages/8 seconds, 3 duplicates/30 seconds, a 3-mention limit and 2 anti-nuke events/15 seconds. First-time setup selects all features; later runs load current settings. Unselected features are disabled on Apply.
-2. **Logs:** select an existing text channel or leave empty to create private `#aio-logs`.
+2. **Logs:** select an existing text channel or leave empty to create private `#kuroo-logs`.
 3. **Honeypot:** select a dedicated channel or leave empty to create `#honeypot`; select timeout, kick, or ban. The default timeout is one hour, configurable through `/tune honeypotTimeoutMinutes`.
 4. **Verification:** select a channel and a permissionless role, or leave empty to create read-only `#verify` and a Verified role. Choose button or CAPTCHA mode and whether to create a gated `#members` channel (enabled by default). CAPTCHA needs Attach Files in the verification channel.
 5. **Review and Apply:** the wizard checks bot permissions and supplied resources, creates missing resources, posts panels, and saves configuration. Cancel leaves configuration unchanged. Failed application attempts remove newly created resources/messages and report any cleanup failures. Existing channels/roles are never deleted by rollback.
@@ -116,7 +130,7 @@ Use `/settings` for a summary of every system and channel. Individual security c
 
 ## Custom emojis
 
-Manually edit **config/emojis.json** and replace `null` values with quoted Discord emoji IDs or full markup, then restart. The keys include home, search, close, security, leveling, economy, general, moderation, admin, setup, verify, success, and error.
+Manually edit **config/emojis.json** and replace `null` values with quoted Discord emoji IDs or full markup, then restart. Keys and placements are listed below. Defaults use standard icons until you supply your own IDs.
 
 ```json
 {
@@ -137,7 +151,26 @@ Per-server overrides can be changed without restarting:
 ?emojis
 ```
 
-`clear` removes the server override and restores the file value or standard icon. Overrides are persisted in SQLite. Help headers, category icons, navigation buttons, setup headings, admin confirmations, and verification panels use these settings. Open a new menu to refresh existing help messages; rerun `/verification on` to refresh its panel. Rank/leaderboard images keep their simple black style.
+`clear` removes the server override and restores the file value or standard icon. Overrides are persisted in SQLite. Help headers, category lists, command rows, dropdown options, navigation buttons, setup controls, command confirmations, verification panels, wallet amounts and security alerts use these settings. Open a new menu to refresh existing help messages; rerun `/verification on` to refresh its panel. Rank and leaderboard text is drawn on canvas and does not use Discord custom emojis.
+
+
+### Emoji placement map
+
+Inspired by AeroX Development’s help layouts; see [source notes](docs/GITHUB-SOURCES.md#kuroo-emoji-placement-reference).
+
+| Keys | Placement |
+| --- | --- |
+| `home`, `search`, `close`, `invite` | Help heading, menu options, Home/Search/Close/Invite buttons; closed menu |
+| `previous`, `next` | Help pagination and setup Back/Next buttons |
+| `security`, `leveling`, `economy`, `general`, `moderation`, `admin` | Help categories/headings and command reply icons; `security` also labels alerts |
+| `reply`, `bullet` | Help category/command rows and alias lines |
+| `setup`, `success` | Wizard heading and Apply/completion controls |
+| `enabled`, `disabled` | Feature states in settings and the setup review |
+| `verify` | Verification heading, Verify and Enter code buttons |
+| `coin`, `bank` | Wallet and bank amounts in `/balance` |
+| `error` | Command failures and invalid prefix arguments |
+
+Existing emoji overrides remain valid. New keys default to standard icons. Emoji IDs from the reference bots are not bundled; configure icons you can use with `/setemoji` or `config/emojis.json`.
 
 ## Honeypot and verification
 

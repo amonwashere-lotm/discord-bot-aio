@@ -26,7 +26,7 @@ export async function safeVerifiedRole(guild, value) {
   return role;
 }
 export function verificationPanel(settings={}) {
-  const payload=panel(`## ${emoji('verify',settings)} Verify your membership\nPress **Verify** to receive the Verified role and access member areas. `);
+  const payload=panel(`## ${emoji('verify',settings)} Kuroo · Verify your membership\nPress **Verify** to receive the Verified role and access member areas. `);
   payload.components[0].addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('aio:verify').setLabel('Verify').setEmoji(emoji('verify',settings)).setStyle(ButtonStyle.Success)));
   return payload;
 }
@@ -76,8 +76,8 @@ export async function handleVerification(i,store,book=challenges) {
     checkAccount(i.user,settings);
     if(settings.verificationMode==='captcha') {
       const item=book.create(i.guild.id,i.user.id,settings);
-      const payload=panel('## Verification challenge\nEnter the six characters in the image. Expires in 3 minutes; 3 attempts allowed.');
-      payload.components[0].addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://challenge.png'))).addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`captcha:enter:${item.id}`).setLabel('Enter code').setStyle(ButtonStyle.Primary)));
+      const payload=panel('## Kuroo verification challenge\nEnter the six characters in the image. Expires in 3 minutes; 3 attempts allowed.',settings,'verify');
+      payload.components[0].addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL('attachment://challenge.png'))).addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`captcha:enter:${item.id}`).setLabel('Enter code').setEmoji(emoji('verify',settings)).setStyle(ButtonStyle.Primary)));
       payload.files=[new AttachmentBuilder(captchaImage(item.answer),{name:'challenge.png'})];
       await i.editReply(payload);
     } else await i.editReply(await grantVerified(i,store,settings));

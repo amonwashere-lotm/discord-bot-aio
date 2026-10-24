@@ -102,7 +102,7 @@ test('help displays and searches every alias without duplicate command entries',
      const payload=help(commands,user,'search',alias.toUpperCase());
      const content=payload.components[0].toJSON().components.filter(c=>c.type===10).map(c=>c.content).join('\n');
      assert.ok(content.includes(`**?${command.name}`));
-     assert.equal(content.split('\n').filter(line=>line.startsWith(`**?${command.name}**`)||line.startsWith(`**?${command.name} `)).length,1);
+     assert.equal(content.split('\n').filter(line=>line.startsWith(`↳ **?${command.name}**`)||line.startsWith(`↳ **?${command.name} `)).length,1);
    }
  }
  const container=help(commands,user,'all').components[0].toJSON();

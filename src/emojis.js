@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 
 export const emojiDefaults = Object.freeze({
   home:'🏠', search:'🔎', close:'✖', security:'🛡️', leveling:'📈', economy:'🪙',
-  general:'📋', moderation:'🔨', admin:'⚙️', setup:'🧰', verify:'✅', success:'✅', error:'❌'
+  general:'📋', moderation:'🔨', admin:'⚙️', setup:'🧰', verify:'✅', success:'✅', error:'❌',
+  bullet:'•', reply:'↳', enabled:'🟢', disabled:'⚫', previous:'◀️', next:'▶️',
+  invite:'🔗', coin:'🪙', bank:'🏦'
 });
 const configured = JSON.parse(readFileSync(new URL('../config/emojis.json', import.meta.url), 'utf8'));
 export function parseEmoji(value, key='icon') {

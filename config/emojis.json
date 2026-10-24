@@ -11,5 +11,14 @@
   "setup": null,
   "verify": null,
   "success": null,
-  "error": null
+  "error": null,
+  "bullet": null,
+  "reply": null,
+  "enabled": null,
+  "disabled": null,
+  "previous": null,
+  "next": null,
+  "invite": null,
+  "coin": null,
+  "bank": null
 }
