@@ -38,10 +38,10 @@ export function rankCard(name, user, rank, avatar=null) {
   ctx.fillStyle='#d4d4d8'; ctx.textAlign='right';ctx.fillText(`${user.xp.toLocaleString()} TOTAL XP`,945,290);
   return canvas.toBuffer('image/png');
 }
-export function leaderboardCard(rows) {
-  const {canvas,ctx}=base(200+rows.length*65,`${BRAND.toUpperCase()} · SERVER LEADERBOARD`,'The community, ranked by experience.');
+export function leaderboardCard(rows, icon=null) {
+  const {canvas,ctx}=base(200+rows.length*65,`${BRAND.toUpperCase()} · SERVER LEADERBOARD`,'The community, ranked by experience.',icon);
   rows.forEach((row,i)=>{
-    const y=165+i*65; ctx.fillStyle=i===0?'#ffffff':'#a1a1aa'; ctx.font='bold 22px sans-serif';
+    const y=165+i*65; ctx.fillStyle=i===0?'#ffffff':'#e4e4e7'; ctx.font='bold 22px sans-serif';
     ctx.fillText(String(i+1).padStart(2,'0'),55,y); ctx.fillText(fitText(ctx,row.name,540),120,y);
     ctx.font='18px sans-serif'; ctx.fillText(`LVL ${level(row.xp)}`,700,y); ctx.textAlign='right';ctx.fillText(fitText(ctx,`${row.xp.toLocaleString()} XP`,140),945,y);ctx.textAlign='left';
     ctx.strokeStyle='#27272a'; ctx.beginPath(); ctx.moveTo(55,y+20); ctx.lineTo(945,y+20); ctx.stroke();

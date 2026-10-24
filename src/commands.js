@@ -1,20 +1,20 @@
 import { PermissionFlagsBits as P, AttachmentBuilder, SlashCommandBuilder } from 'discord.js';
-import { help, commandPanel } from './ui.js';
+import { help, helpProfile, commandPanel } from './ui.js';
 import { rankCard, leaderboardCard } from './cards.js';
 import { extensionCommands } from './extensions.js';
 import { emoji } from './emojis.js';
-import { avatarFor } from './avatar.js';
+import { avatarFor, iconFor } from './avatar.js';
 import { adminCommands, settingsText } from './admin.js';
 const userOption={name:'user',description:'Member',type:'user'};
 export const commands=[
   ...adminCommands,
   ...extensionCommands,
-  {name:'help',aliases:['h','commands'],category:'General',description:'Browse and search all commands.',usage:'[query]',options:[{name:'query',description:'Command name, alias or keyword',type:'string',rest:true}],run:async c=>c.reply(help(commands,c.user,c.args.query?'search':'home',c.args.query??'',c.client.user.id,c.store.settings(c.guild.id)))},
+  {name:'help',aliases:['h','commands'],category:'General',description:'Browse and search all commands.',usage:'[query]',options:[{name:'query',description:'Command name, alias or keyword',type:'string',rest:true}],run:async c=>c.reply(help(commands,c.user,c.args.query?'search':'home',c.args.query??'',c.client.user.id,c.store.settings(c.guild.id),0,helpProfile(c.client)))},
   {name:'ping',aliases:['latency'],category:'General',description:'Check the bot connection.',run:async c=>c.reply(commandPanel(c,`Pong · **${Math.max(0,c.client.ws.ping)} ms**`))},
   {name:'rank',aliases:['level','lvl'],category:'Leveling',description:'View your rank with a full avatar background.',options:[userOption],usage:'[@user]',run:async c=>{const u=await c.target(); await c.reply({files:[new AttachmentBuilder(rankCard(u.username,c.store.user(c.guild.id,u.id),c.store.rank(c.guild.id,u.id),await avatarFor(u)),{name:'rank.png'})]});}},
   {name:'leaderboard',aliases:['lb','top'],category:'Leveling',description:'View the top 10 members as an image.',run:async c=>{
     const rows=await Promise.all(c.store.top(c.guild.id).map(async r=>({...r,name:(await c.client.users.fetch(r.id).catch(()=>null))?.username??'Unknown member'})));
-    await c.reply({files:[new AttachmentBuilder(leaderboardCard(rows),{name:'leaderboard.png'})]});}},
+    await c.reply({files:[new AttachmentBuilder(leaderboardCard(rows,await iconFor(c.guild)),{name:'leaderboard.png'})]});}},
   {name:'balance',aliases:['bal','wallet'],category:'Economy',description:'Check a member’s coin balance.',options:[userOption],usage:'[@user]',run:async c=>{const u=await c.target(); await c.reply(commandPanel(c,`### Wallet\n${u.username}: ${emoji('coin',c.store.settings(c.guild.id))} **${c.store.user(c.guild.id,u.id).balance.toLocaleString()} wallet coins** · ${emoji('bank',c.store.settings(c.guild.id))} **${c.store.user(c.guild.id,u.id).bank.toLocaleString()} bank coins**`));}},
   {name:'daily',aliases:['claim'],category:'Economy',description:'Claim 500 coins every 24 hours.',run:async c=>{if(!c.store.settings(c.guild.id).economy) throw new Error('The economy is disabled in this server.'); const s=c.store.settings(c.guild.id), ok=c.store.daily(c.guild.id,c.user.id); await c.reply(commandPanel(c,ok?`You collected **${s.dailyAmount} coins**.`:`Your next daily is <t:${Math.ceil((c.store.user(c.guild.id,c.user.id).last_daily+s.dailyCooldownMinutes*60000)/1000)}:R>.`));}},
   {name:'pay',aliases:['give','transfer'],category:'Economy',description:'Send coins to another member.',usage:'@user <amount>',options:[{...userOption,required:true},{name:'amount',description:'Coins to send',type:'integer',required:true,min:1,max:1e9}],run:async c=>{
