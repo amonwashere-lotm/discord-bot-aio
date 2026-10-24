@@ -7,7 +7,7 @@ export function isAvatarUrl(value) {
   } catch { return false; }
 }
 export async function avatarFor(user,fetcher=fetch) {
-  const url=user.displayAvatarURL?.({extension:'png',size:256,forceStatic:true});
+  const url=user.displayAvatarURL?.({extension:'png',size:512,forceStatic:true});
   if(!isAvatarUrl(url)) return null;
   try {
     const response=await fetcher(url,{signal:AbortSignal.timeout(5000),redirect:'error'});

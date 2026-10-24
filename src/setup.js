@@ -20,14 +20,14 @@ function wizard(id,s) {
   const draft=s.draft, prefix=`setup:${id}:`;
   const descriptions=[
     'Select the features to enable. Unselected features will be disabled when you apply.',
-    'Choose a log channel, or leave empty to create a private #aio-logs channel.',
+    'Choose a log channel, or leave empty to create a private #kuroo-logs channel.',
     'Choose a honeypot channel and action. Leave the channel empty to create #honeypot. Messages in it trigger the selected action; administrators are exempt.',
     'Choose a verification channel and a permissionless Verified role, or leave empty to create them. The button grants this role. Optionally create a gated #members channel for verified members; existing channels are preserved.',
-    `Review before applying.\n\n${features.map(key=>`**${key}:** ${draft[key]?'On':'Off'}`).join('\n')}\n**Logs:** ${draft.logChannel?`<#${draft.logChannel}>`:'Create private #aio-logs'}\n**Honeypot:** ${draft.honeypotChannel?`<#${draft.honeypotChannel}>`:'Create #honeypot'} · ${draft.honeypotAction}\n**Verification:** ${draft.verificationChannel?`<#${draft.verificationChannel}>`:'Create #verify'}\n**Verified role:** ${draft.verifiedRole?`<@&${draft.verifiedRole}>`:'Create Verified'}\n**Gated member area:** ${draft.memberArea?'Create or reuse #members':'Off'}\n**Verification mode:** ${draft.verificationMode} · account age ${draft.verifyMinAgeHours}h\n**Anti-nuke:** ${draft.antinukeCount} events / ${draft.antinukeWindowSeconds}s\n**Spam:** ${draft.spamCount} messages / ${draft.spamWindowSeconds}s · duplicates ${draft.duplicateCount}\n**XP:** ${draft.xpAmount} every ${draft.xpCooldownSeconds}s · daily ${draft.dailyAmount} coins\n\nNew channels are created only for enabled features. Custom emoji IDs can be set in config/emojis.json or with /setemoji. Existing XP, coins, and emoji overrides are preserved.`
+    `Review before applying.\n\n${features.map(key=>`${emoji(draft[key]?'enabled':'disabled',draft)} **${key}:** ${draft[key]?'On':'Off'}`).join('\n')}\n**Logs:** ${draft.logChannel?`<#${draft.logChannel}>`:'Create private #kuroo-logs'}\n**Honeypot:** ${draft.honeypotChannel?`<#${draft.honeypotChannel}>`:'Create #honeypot'} · ${draft.honeypotAction}\n**Verification:** ${draft.verificationChannel?`<#${draft.verificationChannel}>`:'Create #verify'}\n**Verified role:** ${draft.verifiedRole?`<@&${draft.verifiedRole}>`:'Create Verified'}\n**Gated member area:** ${draft.memberArea?'Create or reuse #members':'Off'}\n**Verification mode:** ${draft.verificationMode} · account age ${draft.verifyMinAgeHours}h\n**Anti-nuke:** ${draft.antinukeCount} events / ${draft.antinukeWindowSeconds}s\n**Spam:** ${draft.spamCount} messages / ${draft.spamWindowSeconds}s · duplicates ${draft.duplicateCount}\n**XP:** ${draft.xpAmount} every ${draft.xpCooldownSeconds}s · daily ${draft.dailyAmount} coins\n\nNew channels are created only for enabled features. Custom emoji IDs can be set in config/emojis.json or with /setemoji. Existing XP, coins, and emoji overrides are preserved.`
   ];
-  const payload=panel(`## ${emoji('setup',draft)} Server setup · ${s.step+1}/5\n${descriptions[s.step]}\n\nThis menu expires after 15 minutes.`);
+  const payload=panel(`## ${emoji('setup',draft)} Kuroo setup · ${s.step+1}/5\n${descriptions[s.step]}\n\nThis menu expires after 15 minutes.`);
   const box=payload.components[0];
-  if(s.step===0) box.addActionRowComponents(row(new StringSelectMenuBuilder().setCustomId(prefix+'features').setPlaceholder('Enabled features').setMinValues(0).setMaxValues(features.length).addOptions(features.map(key=>({label:key,value:key,default:!!draft[key]})))));
+  if(s.step===0) box.addActionRowComponents(row(new StringSelectMenuBuilder().setCustomId(prefix+'features').setPlaceholder('Enabled features').setMinValues(0).setMaxValues(features.length).addOptions(features.map(key=>({label:key,value:key,emoji:emoji(({automod:'security',antinuke:'security',honeypot:'security',verification:'verify'})[key]??key,draft),default:!!draft[key]})))));
   if(s.step===0) box.addActionRowComponents(row(new StringSelectMenuBuilder().setCustomId(prefix+'preset').setPlaceholder('Optional security preset').addOptions([{label:'Keep current tuning',value:'keep'},{label:'Balanced defaults',value:'balanced'},{label:'Strict: CAPTCHA, 24h account age, lower thresholds',value:'strict'}])));
   if(s.step===1) box.addActionRowComponents(channelSelect(prefix+'logs','Log channel (empty = create)',draft.logChannel));
   if(s.step===2) box.addActionRowComponents(channelSelect(prefix+'honeypot','Honeypot channel (empty = create)',draft.honeypotChannel),row(new StringSelectMenuBuilder().setCustomId(prefix+'action').setPlaceholder('Honeypot action').addOptions(['timeout','kick','ban'].map(value=>({label:value,value,default:draft.honeypotAction===value})))));
@@ -38,9 +38,9 @@ function wizard(id,s) {
     box.addActionRowComponents(channelSelect(prefix+'verification','Verification channel (empty = create)',draft.verificationChannel),row(roleMenu),row(new StringSelectMenuBuilder().setCustomId(prefix+'memberarea').setPlaceholder('Gated member area').addOptions([{label:'Create or reuse a gated #members channel',value:'on',default:!!draft.memberArea},{label:'Configure my own member channel permissions',value:'off',default:!draft.memberArea}])));
   }
   box.addActionRowComponents(new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(prefix+'back').setLabel('Back').setStyle(ButtonStyle.Secondary).setDisabled(s.step===0),
-    new ButtonBuilder().setCustomId(prefix+(s.step===4?'apply':'next')).setLabel(s.step===4?'Apply setup':'Next').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(prefix+'cancel').setLabel('Cancel').setStyle(ButtonStyle.Danger)));
+    new ButtonBuilder().setCustomId(prefix+'back').setLabel('Back').setEmoji(emoji('previous',draft)).setStyle(ButtonStyle.Secondary).setDisabled(s.step===0),
+    new ButtonBuilder().setCustomId(prefix+(s.step===4?'apply':'next')).setLabel(s.step===4?'Apply setup':'Next').setEmoji(emoji(s.step===4?'success':'next',draft)).setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(prefix+'cancel').setLabel('Cancel').setEmoji(emoji('close',draft)).setStyle(ButtonStyle.Danger)));
   return payload;
 }
 export function startSetup(guildId,owner,settings) {
@@ -98,10 +98,10 @@ export async function applySetup(guild,store,draft,actor) {
       const channel=await guild.channels.create({name,type:ChannelType.GuildText,topic:name==='honeypot'?'Do not send messages here. This is an automated spam trap.':undefined,permissionOverwrites:[
         {id:guild.id,deny:privateChannel?[P.ViewChannel]:readOnly?[P.SendMessages]:[],allow:privateChannel?[]:[P.ViewChannel]},
         {id:me.id,allow:[P.ViewChannel,P.SendMessages,P.ReadMessageHistory,...(me.permissions.has(P.AttachFiles)?[P.AttachFiles]:[]),...(me.permissions.has(P.ManageMessages)?[P.ManageMessages]:[])]}
-      ],reason:`AIO setup by ${actor}`});
+      ],reason:`Kuroo setup by ${actor}`});
       created.push(channel); return channel;
     }
-    logs??=await createChannel('aio-logs',true);
+    logs??=await createChannel('kuroo-logs',true);
     patch.logChannel=logs.id;
     if(draft.honeypot) {
       trap??=await createChannel('honeypot');
@@ -109,7 +109,7 @@ export async function applySetup(guild,store,draft,actor) {
       sent.push(await trap.send({content:`Do not send messages in this channel. This is a honeypot. Posting here triggers ${draft.honeypotAction==='timeout'?`a ${draft.honeypotTimeoutMinutes}-minute timeout`:`a ${draft.honeypotAction}`}. Administrators are exempt.`,allowedMentions:{parse:[]}}));
     }
     if(draft.verification) {
-      if(!role) { role=await guild.roles.create({name:'Verified',permissions:[],reason:`AIO setup by ${actor}`}); created.push(role); }
+      if(!role) { role=await guild.roles.create({name:'Verified',permissions:[],reason:`Kuroo setup by ${actor}`}); created.push(role); }
       verification??=await createChannel('verify',false,true);
       const message=await publishVerification(guild,verification,role,{...store.settings(guild.id),...draft});
       sent.push(message);
@@ -120,7 +120,7 @@ export async function applySetup(guild,store,draft,actor) {
             {id:guild.id,deny:[P.ViewChannel]},
             {id:role.id,allow:[P.ViewChannel,P.SendMessages]},
             {id:me.id,allow:[P.ViewChannel,P.SendMessages]}
-          ],reason:`AIO verified member area by ${actor}`});
+          ],reason:`Kuroo verified member area by ${actor}`});
           created.push(memberChannel);
         }
         Object.assign(patch,{memberChannel:memberChannel.id,memberRole:role.id});
@@ -131,7 +131,7 @@ export async function applySetup(guild,store,draft,actor) {
     return patch;
   } catch(error) {
     const cleanupFailures=[];
-    for(const item of [...sent,...created.reverse()]) await item.delete('AIO setup rollback').catch(()=>cleanupFailures.push(item.id));
+    for(const item of [...sent,...created.reverse()]) await item.delete('Kuroo setup rollback').catch(()=>cleanupFailures.push(item.id));
     if(cleanupFailures.length) error.message+=` Setup could not remove created resources/messages: ${cleanupFailures.join(', ')}. Remove them manually.`;
     throw error;
   } finally { applying.delete(guild.id); }
@@ -148,13 +148,13 @@ export async function handleSetup(i,store) {
     await i.deferUpdate();
     const member=await i.guild.members.fetch({user:i.user.id,force:true});
     if(!member.permissions.has(P.Administrator)) { await i.followUp({content:'Administrator permission is required.',flags:MessageFlags.Ephemeral}); return true; }
-    if(action==='cancel') { sessions.delete(id); await i.editReply(panel('Setup cancelled. Configuration was not changed.')); return true; }
+    if(action==='cancel') { sessions.delete(id); await i.editReply(panel('Setup cancelled. Configuration was not changed.',s.draft,'close')); return true; }
     if(action==='apply'&&s.step===4) {
       try { await applySetup(i.guild,store,s.draft,i.user.id); }
       catch(error) { await i.followUp({content:`Setup failed: ${error.message}`.slice(0,1900),flags:MessageFlags.Ephemeral}); return true; }
       sessions.delete(id);
       await log(i.guild,store,`Setup completed by ${i.user.id}.`);
-      await i.editReply(panel('## Setup complete\nUse /settings to inspect the configuration, /setemoji to configure icons, and /help for commands. The optional #members channel is gated by the Verified role. To restrict other existing channels, allow that role and deny @everyone access in their channel/category permissions.'));
+      await i.editReply(panel('## Kuroo · Setup complete\nUse /settings to inspect the configuration, /setemoji to configure icons, and /help for commands. The optional #members channel is gated by the Verified role. To restrict other existing channels, allow that role and deny @everyone access in their channel/category permissions.',store.settings(i.guild.id),'success'));
       return true;
     }
     if(action==='features'&&s.step===0) for(const key of features) s.draft[key]=i.values.includes(key);

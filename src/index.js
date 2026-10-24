@@ -1,4 +1,6 @@
 import { Client, GatewayIntentBits as I, Events, MessageFlags, Partials } from 'discord.js';
+import { BRAND, PREFIX } from './brand.js';
+import { startPresence, streamingUrl } from './presence.js';
 import { awardXp } from './progression.js';
 import { Store } from './store.js';
 import { commands, parseArgs, resolveCommand } from './commands.js';
@@ -8,6 +10,8 @@ import { handleVerification } from './verification.js';
 import { installProtection } from './protection.js';
 if(!process.env.DISCORD_TOKEN) throw new Error('Set DISCORD_TOKEN in .env before starting.');
 const client=new Client({intents:[I.Guilds,I.GuildMembers,I.GuildMessages,I.MessageContent,I.GuildModeration],partials:[Partials.Message]});
+const presenceUrl=streamingUrl(process.env.STREAMING_URL);
+let stopPresence=()=>{};
 const store=new Store(process.env.DATABASE_PATH);
 const moderate=installProtection(client,store);
 const cooldowns=new Map();
@@ -36,8 +40,8 @@ async function execute(source, command, args, slash=false) {
       if([user.id,client.user.id,guild.ownerId].includes(u.id)||(capability&&!victim[capability])||(user.id!==guild.ownerId&&member.roles.highest.comparePositionTo(victim.roles.highest)<=0)) throw new Error('This member is protected by the server role hierarchy.');
       return victim;
     };
-    await command.run({client,store,guild,user,channel:source.channel,args,target,moderationTarget,reply,reason:()=>`${user.id}: ${args.reason??'No reason provided'}`.slice(0,500)});
-  } catch(error) { await reply(panel(`Unable to complete command: ${error.message}`)).catch(e=>console.error('Reply failed:',e.message)); }
+    await command.run({category:command.category,client,store,guild,user,channel:source.channel,args,target,moderationTarget,reply,reason:()=>`${user.id}: ${args.reason??'No reason provided'}`.slice(0,500)});
+  } catch(error) { await reply(panel(`Unable to complete command: ${error.message}`,store.settings(guild.id),'error')).catch(e=>console.error('Reply failed:',e.message)); }
 }
 client.on(Events.MessageCreate,async message=>{
   if(!message.guild||message.author.bot||message.webhookId) return;
@@ -45,14 +49,14 @@ client.on(Events.MessageCreate,async message=>{
     if(await moderate(message)) return;
     const mention=new RegExp(`^<@!?${client.user.id}>\\s*`);
     let input;
-    if(message.content.startsWith('?')) input=message.content.slice(1);
+    if(message.content.startsWith(PREFIX)) input=message.content.slice(PREFIX.length);
     else if(mention.test(message.content)) input=message.content.replace(mention,'')||'help';
     else { await awardXp(message,store); return; }
     const [name,...tokens]=input.trim().split(/\s+/);
     const command=resolveCommand(name);
     if(!command) return;
     let args;
-    try { args=parseArgs(command,tokens); } catch(error) { await message.channel.send(panel(error.message)); return; }
+    try { args=parseArgs(command,tokens); } catch(error) { await message.channel.send(panel(error.message,store.settings(message.guild.id),'error')); return; }
     await execute(message,command,args);
   } catch(error) { console.error('Message handler:',error.message); }
 });
@@ -80,7 +84,11 @@ client.on(Events.InteractionCreate,async interaction=>{
     if(!interaction.replied&&!interaction.deferred) await interaction.reply({content:'Unable to process this interaction. Try /help again.',flags:MessageFlags.Ephemeral}).catch(()=>{});
   }
 });
-client.once(Events.ClientReady,ready=>console.log(`Ready as ${ready.user.tag} · ${commands.length} hybrid commands`));
+client.once(Events.ClientReady,async ready=>{
+  stopPresence=startPresence(ready,{url:presenceUrl});
+  if(ready.user.username!==BRAND) await ready.user.setUsername(BRAND).catch(error=>console.error('Kuroo profile rename failed:',error.message));
+  console.log(`Ready as ${ready.user.tag} · ${commands.length} hybrid commands`);
+});
 client.on(Events.Error,error=>console.error('Discord client:',error.message));
-for(const signal of ['SIGINT','SIGTERM']) process.once(signal,()=>{client.destroy(); store.db.close(); process.exit(0);});
+for(const signal of ['SIGINT','SIGTERM']) process.once(signal,()=>{stopPresence();client.destroy(); store.db.close(); process.exit(0);});
 await client.login(process.env.DISCORD_TOKEN);

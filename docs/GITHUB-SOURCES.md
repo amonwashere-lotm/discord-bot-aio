@@ -33,3 +33,12 @@ Also examined `diwasatreya/Verification-Bot` at `46db038f3c8fe85a3ac7ced2cd2b6e6
 Existing database balances, XP, settings and role assignments are preserved. Migration adds bank/work columns and warning/incident tables. Defaults remain 20 XP per minute and 500 daily coins every 24 hours. New duplicate filtering runs when automod is enabled; anti-nuke's expanded actions count toward its existing default of three events in 15 seconds. The Strict wizard preset explicitly changes selected defaults and previews them before Apply.
 
 Anti-nuke counts events and bans an executable actor when possible. Deleted resources and granted permissions require moderator recovery; the bot does not promise preemptive protection. A local image CAPTCHA adds friction but is not proof of a human operator. Runtime role hierarchy, portal intents, Discord component rendering and external emoji availability still require a live guild check.
+
+## Kuroo emoji placement reference
+
+Reviewed 2026-10-24. GitHub search for “AeroX Development” located these non-archived repositories:
+
+- [itsfizys/AeroX-All-In-One-Bot-V1](https://github.com/itsfizys/AeroX-All-In-One-Bot-V1/blob/79adce104d9505ba574ba36fc2a0746547f8706b/AeroX-AIO-V1/Commands/Information/help.js): custom icons in section headings, module rows with reply markers, dropdown options and navigation. Also inspected its moderation `ban.js`, utility `rank.js`, and client `ready.js` at that revision.
+- [itsfizys/Melon-All-In-One-Discord-Bot](https://github.com/itsfizys/Melon-All-In-One-Discord-Bot/tree/ba6362e7353cdb13323f4167ad318092e2595edc): inspected `src/lib/helpMenu.js` and `src/emojis.json` for menu structure and semantic icon categories.
+
+These are visual placement references. GitHub reported no standard license for the first and NOASSERTION for the second. No source code, custom emoji IDs, images, banners or branding from either repository were copied. Kuroo’s existing Components v2 renderer now places its own manually configurable icons in headings, category lists, command rows, menus, navigation, setup, verification, command replies and security alerts. The implementation uses the existing emoji resolver and Unicode fallbacks.

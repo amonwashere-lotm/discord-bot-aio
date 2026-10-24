@@ -1,3 +1,5 @@
+import { BRAND } from './brand.js';
+import { emoji } from './emojis.js';
 import { createHash } from 'node:crypto';
 import { AuditLogEvent, PermissionFlagsBits as P } from 'discord.js';
 export class WindowCounter {
@@ -10,10 +12,10 @@ export class WindowCounter {
 }
 export async function log(guild,store,message) {
   try { store.incident?.(guild.id,message); } catch(error) { console.error('Incident persistence failed:',error.message); }
-  const id=store.settings(guild.id).logChannel;
+  const settings=store.settings(guild.id), id=settings.logChannel;
   if(!id) { console.warn(`[security:${guild.id}] ${message}`); return; }
   const channel=await guild.channels.fetch(id).catch(()=>null);
-  if(channel?.isTextBased()) await channel.send({content:message.slice(0,1900),allowedMentions:{parse:[]}}).catch(e=>console.error('Security log delivery failed:',e.message));
+  if(channel?.isTextBased()) await channel.send({content:`${emoji('security',settings)} **${BRAND}** · ${message.slice(0,1800)}`,allowedMentions:{parse:[]}}).catch(e=>console.error('Security log delivery failed:',e.message));
 }
 export async function handleHoneypot(message,store,recent=new Map()) {
   const settings=store.settings(message.guild.id);
